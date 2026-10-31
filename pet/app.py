@@ -2762,8 +2762,9 @@ class AppShell:
         path = _os.environ.get("DSH_PET_ACTION_FILE") or _os.path.join(
             _os.environ.get("APPDATA", ""), "dsh-pet-bubble", "action.json")
         log.info("action watcher installed: %s", path)
-        state = {"mtime": 0.0, "singing_until": 0.0, "talking_until": 0.0, "current": ""}
-        mapping = {"talking": "对屏碎碎念", "singing": "悠闲哼歌"}
+        state = {"mtime": 0.0, "singing_until": 0.0, "talking_until": 0.0,
+                 "mode": "", "mode_until": 0.0, "current": ""}
+        mapping = {"talking": "对屏碎碎念", "singing": "悠闲哼歌", "think": "深度思考"}
 
         def _resolve(win, keyword: str) -> str:
             try:
@@ -2776,7 +2777,9 @@ class AppShell:
 
         def _apply(win) -> None:
             now = time.time()
-            if state["talking_until"] > now:
+            if state["mode_until"] > now and state["mode"]:
+                want = state["mode"]
+            elif state["talking_until"] > now:
                 want = "talking"
             elif state["singing_until"] > now:
                 want = "singing"
@@ -2816,6 +2819,10 @@ class AppShell:
                     if "state" in obj:
                         ttl = min(60.0, max(0.5, float(obj.get("ttl") or 8000) / 1000.0))
                         which = str(obj.get("state") or "").lower()
+                        if which in ("talking", "singing", "think", "pause"):
+                            # 节奏状态：谁最后写谁算（ttl 内有效），pause 映射到待机
+                            state["mode"] = which
+                            state["mode_until"] = now + ttl
                         if which == "talking":
                             state["talking_until"] = now + ttl
                         elif which == "singing":
@@ -2826,31 +2833,6 @@ class AppShell:
         self._action_timer.timeout.connect(_tick)
         self._action_timer.start(300)
 
-        # 口型：说话动画播放时按 mouth.json 的开合把动画暂停/继续，
-        # 逗号停顿和句间呼吸时自然「闭嘴」，不需要额外的嘴型素材。
-        from . import mouth_sync as _mouth
-
-        mouth = {"open": 1}
-
-        def _mouth_tick() -> None:
-            win = getattr(self.instance, "win", None)
-            if win is None or state["current"] != "talking":
-                return
-            obj = _mouth.read_mouth()
-            if not isinstance(obj, dict):
-                return
-            open_ = 1 if int(obj.get("open") or 0) else 0
-            if not obj.get("talking", True):
-                open_ = 0
-            if open_ == mouth["open"]:
-                return
-            mouth["open"] = open_
-            if _mouth.apply_mouth(win, bool(open_)):
-                log.info("mouth -> %s", "open" if open_ else "close")
-
-        self._mouth_timer = _QTimer()
-        self._mouth_timer.timeout.connect(_mouth_tick)
-        self._mouth_timer.start(60)
 
     def _install_say_watcher(self) -> None:
         """读外部 say 文件，内容变化就弹气泡（直播机器人说话入口）。"""

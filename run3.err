@@ -1,0 +1,23 @@
+requestActivate() called for  QWidgetWindow(0x1dccdfdbfe0, name="ShellOverlayWindowClassWindow")  which has Qt::WindowDoesNotAcceptFocus set.
+Exception ignored in atexit callback: <built-in function __moduleShutdown>
+Traceback (most recent call last):
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\overlay_shell.py", line 4070, in eventFilter
+    if event.type() != QEvent.Type.KeyPress:
+       ^^^^^^^^^^^^
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\overlay_shell.py", line 4070, in eventFilter
+    if event.type() != QEvent.Type.KeyPress:
+       ^^^^^^^^^^^^
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\overlay_shell.py", line 4070, in eventFilter
+    if event.type() != QEvent.Type.KeyPress:
+       ^^^^^^^^^^^^
+  [Previous line repeated 1 more time]
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\session_watcher.py", line 341, in nativeEventFilter
+    reason = session_end_reason(message)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\session_watcher.py", line 143, in session_end_reason
+    address = _message_address(message)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\session_watcher.py", line 125, in _message_address
+    return max(0, int(message))
+                  ^^^^^^^^^^^^
+SystemError: Error calling Python override of QObject::eventFilter(): Error calling Python override of QObject::eventFilter(): Error calling Python override of QObject::eventFilter(): Error calling Python override of QObject::eventFilter(): Error calling Python override of QAbstractNativeEventFilter::nativeEventFilter(): <class 'int'> returned a result with an exception set

@@ -1,0 +1,1 @@
+requestActivate() called for  QWidgetWindow(0x1a2526925c0, name="ShellOverlayWindowClassWindow")  which has Qt::WindowDoesNotAcceptFocus set.

@@ -1,0 +1,23 @@
+requestActivate() called for  QWidgetWindow(0x1980b914660, name="ShellOverlayWindowClassWindow")  which has Qt::WindowDoesNotAcceptFocus set.
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\__main__.py", line 176, in <module>
+    sys.exit(_main())
+             ^^^^^^^
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\__main__.py", line 167, in _main
+    return _run_settings()
+           ^^^^^^^^^^^^^^^
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\__main__.py", line 133, in _run_settings
+    return _exec_settings(
+           ^^^^^^^^^^^^^^^
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\__main__.py", line 54, in _exec_settings
+    dialog = ModernSettingsDialog(config, parent=None, **dialog_kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\modern_settings_dialog.py", line 1021, in __init__
+    from .festival.settings import FestivalSettingsPage
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\festival\__init__.py", line 31, in <module>
+    from .calendar import (
+  File "D:\PYMSS-RVC\_vendor\dsh-pet-indesktop\pet\festival\calendar.py", line 25, in <module>
+    from lunar_python import Lunar, Solar
+ModuleNotFoundError: No module named 'lunar_python'

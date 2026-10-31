@@ -2826,6 +2826,32 @@ class AppShell:
         self._action_timer.timeout.connect(_tick)
         self._action_timer.start(300)
 
+        # 口型：说话动画播放时按 mouth.json 的开合把动画暂停/继续，
+        # 逗号停顿和句间呼吸时自然「闭嘴」，不需要额外的嘴型素材。
+        from . import mouth_sync as _mouth
+
+        mouth = {"open": 1}
+
+        def _mouth_tick() -> None:
+            win = getattr(self.instance, "win", None)
+            if win is None or state["current"] != "talking":
+                return
+            obj = _mouth.read_mouth()
+            if not isinstance(obj, dict):
+                return
+            open_ = 1 if int(obj.get("open") or 0) else 0
+            if not obj.get("talking", True):
+                open_ = 0
+            if open_ == mouth["open"]:
+                return
+            mouth["open"] = open_
+            if _mouth.apply_mouth(win, bool(open_)):
+                log.info("mouth -> %s", "open" if open_ else "close")
+
+        self._mouth_timer = _QTimer()
+        self._mouth_timer.timeout.connect(_mouth_tick)
+        self._mouth_timer.start(60)
+
     def _install_say_watcher(self) -> None:
         """读外部 say 文件，内容变化就弹气泡（直播机器人说话入口）。"""
         import os as _os
@@ -5251,7 +5277,7 @@ class AppShell:
             add_tray_action(menu, '快速对话（气泡）', self.instance.open_quick_chat)
             add_tray_action(menu, 'AI 设置', self.instance.open_chat_settings)
         add_tray_action(menu, '桌宠设置', self.instance.open_modern_settings)
-        add_tray_action(menu, '控制面板', self.open_control_panel)
+        add_tray_action(menu, '控制面板', self.instance.open_control_panel)
 
         m_char = track_menu(menu.addMenu('切换角色'))
         # 勾选态标**当前身份**的角色（换角色后本菜单会重建，见 _refresh_tray_menu）；

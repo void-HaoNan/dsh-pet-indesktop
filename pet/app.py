@@ -862,6 +862,41 @@ class PetInstance:
             return None
         return _OverlayChatHost(shell)
 
+    def open_control_panel(self) -> None:
+        """精简控制面板：只放桌宠聊天相关的开关与状态。"""
+        panel = getattr(self, "_control_panel", None)
+        if panel is None:
+            from .control_panel import PetControlPanel
+            panel = PetControlPanel(
+                self.config,
+                on_open_chat=self.open_chat,
+                on_restart=self.restart_app,
+            )
+            self._control_panel = panel
+        panel.show()
+        panel.raise_()
+        panel.activateWindow()
+
+    def restart_app(self) -> None:
+        """重启桌宠：延迟两秒再拉起新进程，避开单实例锁，然后退出当前进程。"""
+        import subprocess
+        import sys
+        from PySide6.QtWidgets import QApplication
+
+        if getattr(sys, "frozen", False):
+            program, argv = sys.executable, sys.argv[1:]
+        else:
+            program, argv = sys.executable, ["-m", "pet"] + sys.argv[1:]
+        code = (
+            "import subprocess,sys,time;time.sleep(2);"
+            "subprocess.Popen(sys.argv[1:], close_fds=True)"
+        )
+        try:
+            from PySide6.QtCore import QProcess
+            QProcess.startDetached(sys.executable, ["-c", code, program] + argv)
+        except Exception:
+            subprocess.Popen([sys.executable, "-c", code, program] + argv, close_fds=True)
+        QApplication.quit()
     def open_chat(self) -> None:
         """Open the configured chat UI; menus only need this stable dispatcher."""
         if str(self.config.get("chat_ui_style", "modern")) == "classic":
@@ -5216,6 +5251,7 @@ class AppShell:
             add_tray_action(menu, '快速对话（气泡）', self.instance.open_quick_chat)
             add_tray_action(menu, 'AI 设置', self.instance.open_chat_settings)
         add_tray_action(menu, '桌宠设置', self.instance.open_modern_settings)
+        add_tray_action(menu, '控制面板', self.open_control_panel)
 
         m_char = track_menu(menu.addMenu('切换角色'))
         # 勾选态标**当前身份**的角色（换角色后本菜单会重建，见 _refresh_tray_menu）；

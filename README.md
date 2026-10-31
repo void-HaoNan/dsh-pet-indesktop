@@ -13,6 +13,28 @@
 
 一个基于 **Python + PySide6** 的独立桌面宠物。项目脱离 DSH 运行时，提供透明无边框、置顶、可拖动、角色切换、动画播放、系统托盘和可选 AI 对话能力。
 
+## 这是什么（桌宠 · 实时语音聊天）
+
+一句话：**一个会说话、会听你说话的桌宠**（桌面宠物 / 虚拟宠物），基于 Python + PySide6，
+Windows、macOS、Linux 都能跑；核心能力是**实时语音聊天**——麦克风采集、VAD 切句、
+本地语音识别、大模型回复、流式 TTS 回话，全程约 0.6~1 秒出第一声。
+
+搜索关键词（也对应仓库 Topics）：
+桌宠、桌面宠物、虚拟宠物、实时语音聊天、语音助手、麦克风采集、VAD 断句、
+本地语音识别（ASR）、流式语音合成（TTS）、AI 陪伴、desktop pet、real-time voice chat、
+speech recognition、text to speech。
+
+本仓库是 [`MerZlin/dsh-pet-indesktop`](https://github.com/MerZlin/dsh-pet-indesktop) 的 fork，保留上游全部能力，
+额外做了这些和直播场景相关的调整：气泡正文放大到 17px（文本列同步加宽、页码封顶）、
+桌宠动作与「说话/唱歌」状态联动（action.json 的 singing_until / talking_until）、
+以及一整套桌宠与直播控制台的联动适配。上游的版本说明、发布包和大多数 issue 仍以
+[上游仓库](https://github.com/MerZlin/dsh-pet-indesktop) 为准。
+
+- 想直接体验：看 [下载与版本选择](#下载与版本选择) 和 [快速开始](#快速开始)。
+- 想改语音链路：看 [AI 对话使用教程（Chat 版）](#ai-对话使用教程chat-版)。
+- 只想要气泡/字号行为：见 `pet/speech_bubble_text.py` 顶部常量（正文 17px、列宽 320/440）。
+
+
 > **发布状态**
 >
 > - **最近正式发布：v4.3.4（2026-10-19）**。Release 永久地址：[`releases/tag/v4.3.4`](https://github.com/MerZlin/dsh-pet-indesktop/releases/tag/v4.3.4)，产物清单与校验值以该页面为准；说明文档见 [`docs/RELEASE-v4.3.4.md`](docs/RELEASE-v4.3.4.md)。

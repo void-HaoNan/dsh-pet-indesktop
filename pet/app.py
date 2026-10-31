@@ -2787,6 +2787,33 @@ class AppShell:
                 want = "idle"
             if want == state["current"]:
                 return
+            if want == "pause":
+                # 停顿只暂停说话动画（闭嘴），不回待机；一句话没说完不会被打断
+                hold = getattr(win, "external_hold_anim", None)
+                current = getattr(win, "anim", None)
+                if not hold and current and current != getattr(win, "idle", None):
+                    hold = current  # hold 被 idle 清掉时，保持当前说话动作不再切待机
+                if hold:
+                    if getattr(win, "anim", None) != hold:
+                        try:
+                            win.switch_clip(hold)
+                        except Exception:
+                            pass
+                    try:
+                        win.movie.pause()
+                    except Exception:
+                        pass
+                    state["current"] = "pause"
+                    return
+            if want == "talking" and state["current"] == "pause":
+                hold = getattr(win, "external_hold_anim", None)
+                if hold and getattr(win, "anim", None) == hold:
+                    try:
+                        win.movie.resume()
+                    except Exception:
+                        pass
+                    state["current"] = "talking"
+                    return
             state["current"] = want
             name = _resolve(win, mapping[want]) if want in mapping else win.idle
             log.info("external action -> %s (%s)", want, name)

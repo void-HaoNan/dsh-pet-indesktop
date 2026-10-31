@@ -29,13 +29,13 @@ SELF_TALK_IMAGE_SUFFIXES = {
 # 气泡文本列的基础像素宽（短文案列宽，也是气泡整体宽度的由来），以及 label
 # 矩形相对最长行的余量。换行预算必须是 ``列宽 - 余量``：整型 horizontalAdvance
 # 累加与绘制时的自然（分数）宽度有亚像素差，余量同时吸收这个差，行尾才不会切字。
-BUBBLE_TEXT_COLUMN = 248
+BUBBLE_TEXT_COLUMN = 320
 BUBBLE_TEXT_SLACK = 4
 
-# 自适应列宽：短文案维持 248px（视觉与旧版一致），文案变长后逐步放宽到
-# 360px 上限。加宽换来每行装更多字——长文案的总行数、翻页次数与「末页孤行」
+# 自适应列宽：短文案维持 320px，文案变长后逐步放宽到
+# 440px 上限（2026-11-01 整体放大：正文 17px、列宽同步加宽）。加宽换来每行装更多字——长文案的总行数、翻页次数与「末页孤行」
 # 概率一起下降；上限兼顾气泡观感与桌宠贴边时剩余的可用空间。
-BUBBLE_TEXT_COLUMN_MAX = 360
+BUBBLE_TEXT_COLUMN_MAX = 440
 BUBBLE_TEXT_COLUMN_GROWTH_CHARS = 60   # 超过这个字数才开始放宽
 BUBBLE_TEXT_COLUMN_GROWTH_SPAN = 100   # 再长 100 字到达列宽上限
 
@@ -51,11 +51,11 @@ def bubble_wrap_width(column: int = BUBBLE_TEXT_COLUMN, slack: int = BUBBLE_TEXT
 # 只放大气泡会让文字看起来更小（两者必须同一个系数）。
 BUBBLE_TEXT_SCALE_MIN = 0.5
 BUBBLE_TEXT_SCALE_MAX = 3.0
-# 各形态的基础字号（px），也是缩放前的原值：正文 13 / 副标题与页码 10 /
-# 标题态副标题 11。绘制侧按同一系数取整，度量侧从 label.font() 读回。
-BUBBLE_BODY_FONT_PX = 13
-BUBBLE_SUBTITLE_FONT_PX = 10
-BUBBLE_TITLE_FONT_PX = 11
+# 各形态的基础字号（px），也是缩放前的原值：正文 17 / 副标题与页码 13 /
+# 标题态副标题 13。绘制侧按同一系数取整，度量侧从 label.font() 读回。
+BUBBLE_BODY_FONT_PX = 17
+BUBBLE_SUBTITLE_FONT_PX = 13
+BUBBLE_TITLE_FONT_PX = 13
 
 
 def clamp_bubble_text_scale(scale: float) -> float:

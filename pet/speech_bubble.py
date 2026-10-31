@@ -149,7 +149,7 @@ BREATH_SUBTITLE_SIDE_CLEARANCE = 1
 
 # 呼吸泡画布宽度上限（参考画布 240 宽下的逻辑像素）：文字/配图内容按缩放系数
 # 换算，超长内容不允许把水泡顶成整屏。
-BREATH_CANVAS_MAX_W = 320
+BREATH_CANVAS_MAX_W = 340
 
 
 def breath_main_bubble_path(canvas: QSize) -> QPainterPath:
@@ -518,10 +518,13 @@ class PetSpeechBubble(QFrame):
             f"font-size: {scale_bubble_font_px(BUBBLE_TITLE_FONT_PX if self._title_first else BUBBLE_SUBTITLE_FONT_PX, self._text_scale)}px; }}"
         )
         self._subtitle_label.setMaximumWidth(self._subtitle_width_floor())
+        # 页码点也跟着字号缩放，但设上限：3 倍字号时「● ○ ○」能到 400px，
+        # 会把整块气泡撑出屏幕（窄屏 300% 实测 455 > 420）。封顶 16px、宽 140。
+        self._page_indicator.setMaximumWidth(140)
         self._page_indicator.setStyleSheet(
             "QLabel#pet-page-indicator { background: transparent; border: none; padding: 0; "
             f"color: {self._preset['foreground']}; "
-            f"font-size: {scale_bubble_font_px(BUBBLE_SUBTITLE_FONT_PX, self._text_scale)}px; }}"
+            f"font-size: {min(16, scale_bubble_font_px(BUBBLE_SUBTITLE_FONT_PX, self._text_scale))}px; }}"
         )
         self._surface_geometry_key = None
         self._breath_geometry_key = None
@@ -578,6 +581,22 @@ class PetSpeechBubble(QFrame):
             )
         bubble_size = self._breath_size_for_content(base_size)
         bubble_size, label_height = self._breath_size_for_subtitle(bubble_size)
+        # 放大字号后画布可能宽过可用区：以屏幕为准收窄，再按新画布重算正文盒，
+        # 宁可每行少几个字，也不让整个气泡伸出屏幕。
+        avail = self._available_geometry(anchor_rect)
+        if avail is not None and avail.width() > 0:
+            limit = max(160, avail.width() - 16)
+            if bubble_size.width() > limit:
+                bubble_size = QSize(limit, int(limit * 195 / 240 + 0.5))
+                self._layout.setContentsMargins(*self._breath_text_margins(bubble_size))
+                margins = self._layout.contentsMargins()
+                label_width = max(92, bubble_size.width() - margins.left() - margins.right())
+                reserve = (
+                    self._breath_subtitle_reserve(label_width, bubble_size)
+                    if self._subtitle_shown() else 0
+                )
+                inner = bubble_size.height() - margins.top() - margins.bottom()
+                label_height = max(BREATH_LABEL_MIN_H, inner - reserve)
         self._breath_scale = bubble_size.width() / 240.0
         if self._content_kind == "image":
             self._layout.setContentsMargins(
@@ -615,14 +634,22 @@ class PetSpeechBubble(QFrame):
         else:
             self.label.show()
             self.label.setPixmap(QPixmap())
+            if self._multi_line:
+                # 双语歌词：上下两行居中，别按单行裁掉第二行
+                self.label.setWordWrap(True)
+                self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.label.ensurePolished()
-            self.label.setText(elide_bubble_text(
-                QFontMetrics(self.label.font()),
-                self._pages[self._page_index] if self._pages else self._raw_text,
-                label_width,
-                bubble_max_lines(self._raw_text, keep_breaks=self._multi_line),
-                keep_breaks=self._multi_line,
-            ))
+            if "\n" in self._raw_text:
+                # 双语歌词：原文/译文各自一行，按宽度自动折行，绝不裁字
+                self.label.setText(self._raw_text)
+            else:
+                self.label.setText(elide_bubble_text(
+                    QFontMetrics(self.label.font()),
+                    self._pages[self._page_index] if self._pages else self._raw_text,
+                    label_width,
+                    bubble_max_lines(self._raw_text, keep_breaks=self._multi_line),
+                    keep_breaks=self._multi_line,
+                ))
 
     def _breath_subtitle_inset(self, canvas_width: int) -> int:
         """呼吸泡副标题左右安全内边距的下限（画布尺寸等比换算）。
@@ -911,7 +938,7 @@ class PetSpeechBubble(QFrame):
         self._raw_text = text
         # 带 subtitle 的气泡是"标题 + 内容"结构，正文里可能自带换行，
         # 必须保留（否则标题与首行会被折行拼接）。
-        self._multi_line = bool(str(subtitle or "").strip())
+        self._multi_line = bool(str(subtitle or "").strip()) or ("\n" in text)
         self._title_first = bool(title_first)
         self._width_locked = bool(width_locked) and self._title_first
         self._source_pixmap = QPixmap()
@@ -1382,8 +1409,8 @@ class PetSpeechBubble(QFrame):
         if avail is None:
             return column
         margins = self._layout.contentsMargins()
-        chrome = margins.left() + margins.right()
-        feasible = avail.width() - chrome - 8
+        chrome = max(0, margins.left()) + max(0, margins.right())  # 负边距是绘制外扩，不算可用宽度
+        feasible = avail.width() - chrome - 48  # 留出气泡描边/阴影占位，别让外框越界
         return max(1, min(column, feasible))
 
     def _place(self, anchor_rect: QRect, *, animate: bool = True) -> None:

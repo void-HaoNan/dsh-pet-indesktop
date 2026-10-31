@@ -2,7 +2,7 @@
 """气泡文字大小（bubble_text_scale）：配置钳位、气泡等比放大、不裁字、分页正常。
 
 回归背景：配图早有 ``self_talk_image_scale``，文字气泡的尺寸与字号却是硬编码的
-（列宽 248/360、font-size 13px），大屏上嫌字小只能改桌宠缩放。本项新增
+（列宽 320/440、font-size 17px），大屏上嫌字小只能改桌宠缩放。本项新增
 ``bubble_text_scale``（50–300%，默认 100）：**列宽、换行预算、label 尺寸与
 字号用同一个系数**整体等比放大。
 
@@ -144,13 +144,14 @@ def _bubble(scale: float, text: str, **kwargs):
 
 def test_default_scale_keeps_label_and_font_pixel_identical():
     """默认 100%：字号与 label 尺寸必须与未设置系数时逐像素一致。"""
+    from pet.speech_bubble_text import BUBBLE_BODY_FONT_PX
     _qapp()
     plain = _bubble(1.0, "一句话而已。")
     scaled = _bubble(1.0, "一句话而已。")
     try:
         assert plain.text_scale == 1.0
         assert plain.label.size() == scaled.label.size()
-        assert plain.label.font().pixelSize() == 13
+        assert plain.label.font().pixelSize() == BUBBLE_BODY_FONT_PX
     finally:
         plain.close()
         scaled.close()
@@ -162,7 +163,8 @@ def test_scale_grows_bubble_and_font_together():
     big = _bubble(2.0, "这是一句用来量宽的话。")
     try:
         assert big.text_scale == 2.0
-        assert big.label.font().pixelSize() == 26
+        from pet.speech_bubble_text import BUBBLE_BODY_FONT_PX
+        assert big.label.font().pixelSize() == BUBBLE_BODY_FONT_PX * 2
         assert big.label.width() > normal.label.width()
         assert big.label.height() > normal.label.height()
         assert big.width() > normal.width()
@@ -313,15 +315,16 @@ def test_scale_clamped_on_bubble_and_stays_on_screen():
 
 
 def test_show_text_without_scale_keeps_legacy_hardcoded_font():
-    """没有注入系数时（旧调用点）保持 13px 硬编码基线，行为零变化。"""
+    """没有注入系数时（旧调用点）保持基础字号基线，行为零变化。"""
     _qapp()
     from pet.speech_bubble import PetSpeechBubble
 
     bubble = PetSpeechBubble()
     bubble.show_text("未注入系数。", _anchor(), 3000)
     bubble.label.ensurePolished()
+    from pet.speech_bubble_text import BUBBLE_BODY_FONT_PX
     try:
         assert bubble.text_scale == 1.0
-        assert bubble.label.font().pixelSize() == 13
+        assert bubble.label.font().pixelSize() == BUBBLE_BODY_FONT_PX
     finally:
         bubble.close()

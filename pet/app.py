@@ -2714,6 +2714,159 @@ class AppShell:
         # 全局快捷键：壳已就绪才装（分发目标是壳的三个既有入口），默认全不绑。
         self._install_global_hotkeys()
         self._announce_slot0_profile_problem()
+        # 外部说话入口：读一个文本文件，内容一变就弹气泡，供直播机器人复用桌宠气泡。
+        self._install_say_watcher()
+        self._install_action_watcher()
+
+    def _install_action_watcher(self) -> None:
+        """读外部 action 文件：说话/唱歌两路同时记，说话优先，说完回唱歌，最后回待机。"""
+        import os as _os
+        from PySide6.QtCore import QTimer as _QTimer
+
+        log = logging.getLogger("dsh-pet-standalone")
+        path = _os.environ.get("DSH_PET_ACTION_FILE") or _os.path.join(
+            _os.environ.get("APPDATA", ""), "dsh-pet-bubble", "action.json")
+        log.info("action watcher installed: %s", path)
+        state = {"mtime": 0.0, "singing_until": 0.0, "talking_until": 0.0, "current": ""}
+        mapping = {"talking": "对屏碎碎念", "singing": "悠闲哼歌"}
+
+        def _resolve(win, keyword: str) -> str:
+            try:
+                for name in win.lib.names():
+                    if keyword in name:
+                        return name
+            except Exception:
+                pass
+            return ""
+
+        def _apply(win) -> None:
+            now = time.time()
+            if state["talking_until"] > now:
+                want = "talking"
+            elif state["singing_until"] > now:
+                want = "singing"
+            else:
+                want = "idle"
+            if want == state["current"]:
+                return
+            state["current"] = want
+            name = _resolve(win, mapping[want]) if want in mapping else win.idle
+            log.info("external action -> %s (%s)", want, name)
+            try:
+                win.switch_clip(name)
+            except Exception as error:
+                log.warning("external action switch failed: %s", error)
+
+        def _tick() -> None:
+            try:
+                mtime = _os.path.getmtime(path)
+            except OSError:
+                return
+            win = getattr(self.instance, "win", None)
+            if win is None:
+                return
+            if mtime != state["mtime"]:
+                state["mtime"] = mtime
+                try:
+                    with open(path, "r", encoding="utf-8-sig") as fh:
+                        obj = json.load(fh)
+                except Exception:
+                    obj = None
+                if isinstance(obj, dict):
+                    now = time.time()
+                    if "singing_until" in obj:
+                        state["singing_until"] = float(obj.get("singing_until") or 0)
+                    if "talking_until" in obj:
+                        state["talking_until"] = float(obj.get("talking_until") or 0)
+                    if "state" in obj:
+                        ttl = min(60.0, max(0.5, float(obj.get("ttl") or 8000) / 1000.0))
+                        which = str(obj.get("state") or "").lower()
+                        if which == "talking":
+                            state["talking_until"] = now + ttl
+                        elif which == "singing":
+                            state["singing_until"] = now + ttl
+            _apply(win)
+
+        self._action_timer = _QTimer()
+        self._action_timer.timeout.connect(_tick)
+        self._action_timer.start(300)
+
+    def _install_say_watcher(self) -> None:
+        """读外部 say 文件，内容变化就弹气泡（直播机器人说话入口）。"""
+        import os as _os
+        from PySide6.QtCore import QTimer as _QTimer
+
+        path = _os.environ.get("DSH_PET_SAY_FILE") or _os.path.join(
+            _os.environ.get("APPDATA", ""), "dsh-pet-bubble", "say.txt")
+        state = {"mtime": 0.0, "prio": 0, "until": 0.0}
+
+        def _tick() -> None:
+            try:
+                mtime = _os.path.getmtime(path)
+            except OSError:
+                return
+            if mtime == state["mtime"]:
+                return
+            state["mtime"] = mtime
+            try:
+                with open(path, "r", encoding="utf-8-sig") as fh:
+                    raw = fh.read().strip()
+            except OSError:
+                return
+            prio, ttl = 2, 4000
+            try:
+                obj = json.loads(raw)
+                text = str(obj.get("text") or "").strip()
+                prio = int(obj.get("prio") or 2)
+                ttl = int(obj.get("ttl") or 4000)
+            except Exception:
+                text = raw
+            if not text:
+                return
+            now = time.time()
+            # 优先级：回复 4 > 歌词 3 > 欢迎 2 > 系统 1；低优先级不许盖掉正在显示的
+            if prio < state["prio"] and now < state["until"]:
+                return
+            state["prio"] = prio
+            state["until"] = now + ttl / 1000.0
+            targets = []
+            win = getattr(self.instance, "win", None)
+            if win is not None:
+                targets.append(win)
+            shell = getattr(self, "_overlay_shell", None)
+            if shell is not None:
+                targets.append(shell)
+            for target in targets:
+                shower = getattr(target, "show_bubble", None)
+                if not callable(shower):
+                    continue
+                try:
+                    # sticky：抖音回复优先级最高，系统状态气泡和自言自语让路
+                    shower(text, duration_ms=10000, sticky=True)
+                except TypeError:
+                    try:
+                        shower(text, duration_ms=10000)
+                    except Exception:
+                        continue
+                except Exception:
+                    continue
+
+                def _hide_if_same(t=target, txt=text):
+                    try:
+                        current = str(getattr(t, "_sticky_text", "") or "")
+                        if current == txt:
+                            hider = getattr(t, "hide_bubble", None)
+                            if callable(hider):
+                                hider()
+                    except Exception:
+                        pass
+
+                _QTimer.singleShot(10000, _hide_if_same)
+
+        timer = _QTimer(getattr(self, "app", None))
+        timer.timeout.connect(_tick)
+        timer.start(400)
+        self._say_watcher_timer = timer
 
     def _announce_slot0_profile_problem(self) -> None:
         """slot0 档案降级后的**可见**告知（含文件路径与恢复动作）。

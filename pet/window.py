@@ -2040,6 +2040,14 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
             # 重建路径的整条转换链：取帧→镜像→预乘→Smooth 缩放→
             # fromImage（浅共享）（P0 观测：重建的缩放段成本）。
             perfstats.time('rebuild.scale', perfstats.clock() - _scale_t0)
+        prev_pm = getattr(self, "_frame_pixmap", None)
+        prev_movie = getattr(self, "_fade_movie", None)
+        if prev_pm is not None and prev_movie is not id(self.movie):
+            # 换动画时保留上一帧做 150ms 交叉淡化：硬切会有明显撕裂，
+            # 不同动画画布尺寸也不完全一致，过渡时按新帧画布缩放旧帧。
+            self._prev_frame_pixmap = prev_pm
+            self._crossfade_start = time.monotonic()
+        self._fade_movie = id(self.movie)
         self._frame_pixmap = pm
         if not getattr(self, '_frame_ready_emitted', False):
             # 首帧就绪：窗口刚 show() 时拿不到画面的下游（托盘图标）在此补画一次。
@@ -2289,6 +2297,25 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
             return True
         return img.pixelColor(px, py).alpha() < 16
 
+    def _paint_with_crossfade(self, painter, rect) -> None:
+        """换动画后 150ms 内把上一帧淡出，避免硬切撕裂与画布跳变。"""
+        prev = getattr(self, "_prev_frame_pixmap", None)
+        started = getattr(self, "_crossfade_start", 0.0)
+        alpha = 0.0
+        if prev is not None and started:
+            progress = (time.monotonic() - started) / 0.15
+            if progress >= 1.0:
+                self._prev_frame_pixmap = None
+            else:
+                alpha = max(0.0, min(1.0, progress))
+        if alpha > 0.0 and prev is not None:
+            painter.drawPixmap(rect, prev)
+            painter.setOpacity(alpha)
+            painter.drawPixmap(rect, self._frame_pixmap)
+            painter.setOpacity(1.0)
+        else:
+            painter.drawPixmap(rect, self._frame_pixmap)
+
     def paintEvent(self, event) -> None:  # noqa: N802 (Qt 命名)
         if perfstats.ENABLED:
             _paint_t0 = perfstats.clock()
@@ -2384,10 +2411,10 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
                 angle = effects_angle() if callable(effects_angle) else 0.0
                 if abs(angle) > 1e-6:
                     self._effects_paint(painter, draw_rect)
-                    painter.drawPixmap(0, 0, self._frame_pixmap)
+                    self._paint_with_crossfade(painter, draw_rect)
                     self._effects_paint_end(painter, draw_rect)
                 else:
-                    painter.drawPixmap(0, 0, self._frame_pixmap)
+                    self._paint_with_crossfade(painter, draw_rect)
         painter.end()
         if perfstats.ENABLED:
             # 窗口绘制（paintEvent 全段，含 slingshot/squash 附加绘制，P0 观测）。

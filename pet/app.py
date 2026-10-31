@@ -2791,6 +2791,8 @@ class AppShell:
             name = _resolve(win, mapping[want]) if want in mapping else win.idle
             log.info("external action -> %s (%s)", want, name)
             try:
+                # 说话/思考/停顿期间锁住随机动作，播完由 _on_anim_ended 续播
+                win.external_hold_anim = name if want != "idle" else None
                 win.switch_clip(name)
             except Exception as error:
                 log.warning("external action switch failed: %s", error)

@@ -419,6 +419,8 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         self.clicks = self.cats['clicks']
         self.drag = self.cats['drag']
         self.acts = self.cats['acts']
+        # 外部动作（说话/思考/停顿）占用时，随机动作链不得插播；播完自动续同一个
+        self.external_hold_anim = None
 
         # 批10-A1 预测式预热（控制器在 predictive_prewarm.py）；提前量默认 350ms，可配 200-600。
         self.predict_prewarm_lead_ms = max(200, min(600, int(config.get('predict_prewarm_lead_ms', 350))))
@@ -2506,6 +2508,10 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
 
     # ================================================================ 动画链
     def _on_anim_ended(self, name: str) -> None:
+        hold = getattr(self, "external_hold_anim", None)
+        if hold and name == hold:
+            self._restart_current_clip(name)
+            return
         if name == SING_ANIM:
             # 音乐自动唱歌开启且当前仍处于“唱歌中”时，直接无缝续播；
             # 不再每次播完都查一次音频 COM，降低长时间运行的崩溃风险。
@@ -2629,6 +2635,14 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         self._animation_gap_active = False
 
     def _pick_next(self) -> None:
+        """外部动作占用时只续播它，不进入随机链。"""
+        hold = getattr(self, "external_hold_anim", None)
+        if hold:
+            if self.anim != hold:
+                self._switch(hold)
+            else:
+                self._restart_current_clip(hold)
+            return
         """动画链：30% 待机 / 10% 转向 / 40% 动作 / 20% 移动（空间不够回退动作）。
 
         「不移动」模式下跳过移动分支，其概率并入动作。批10-A1：先尝试消费预测

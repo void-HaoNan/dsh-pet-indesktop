@@ -1,3 +1,0 @@
-requestActivate() called for  QWidgetWindow(0x202500c1f20, name="ShellOverlayWindowClassWindow")  which has Qt::WindowDoesNotAcceptFocus set.
-Exception ignored in atexit callback: <built-in function __moduleShutdown>
-SystemError: Error calling Python override of QObject::eventFilter(): <function _build_island_event_filter.<locals>._IslandEventFilter.eventFilter at 0x0000020253C4D940> returned a result with an exception set

@@ -18,9 +18,11 @@ import threading
 import urllib.request
 
 from PySide6.QtCore import Qt, QTimer, Signal
+from pathlib import Path
+
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QSlider,
-    QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
+    QPushButton, QSlider, QVBoxLayout, QWidget,
 )
 
 VOICE_CHOICES = (
@@ -161,6 +163,23 @@ class PetControlPanel(QWidget):
         tts_title.setObjectName("hint")
         body.addWidget(tts_title)
 
+        backend_row = QHBoxLayout()
+        backend_label = QLabel("后端")
+        backend_label.setObjectName("row")
+        backend_row.addWidget(backend_label)
+        self.backend_combo = QComboBox()
+        self.backend_combo.addItem("Edge 在线", "edge")
+        self.backend_combo.addItem("GPT-SoVITS", "gptsovits")
+        self.backend_combo.setFixedWidth(190)
+        self.backend_combo.currentIndexChanged.connect(self._backend_changed)
+        backend_row.addStretch(1)
+        backend_row.addWidget(self.backend_combo)
+        body.addLayout(backend_row)
+
+        self.edge_box = QWidget()
+        edge_layout = QVBoxLayout(self.edge_box)
+        edge_layout.setContentsMargins(0, 0, 0, 0)
+        edge_layout.setSpacing(10)
         voice_row = QHBoxLayout()
         voice_label = QLabel("音色")
         voice_label.setObjectName("row")
@@ -172,7 +191,76 @@ class PetControlPanel(QWidget):
         self.voice_combo.currentIndexChanged.connect(self._voice_changed)
         voice_row.addStretch(1)
         voice_row.addWidget(self.voice_combo)
-        body.addLayout(voice_row)
+        edge_layout.addLayout(voice_row)
+        body.addWidget(self.edge_box)
+
+        self.gpt_box = QWidget()
+        gpt_layout = QVBoxLayout(self.gpt_box)
+        gpt_layout.setContentsMargins(0, 0, 0, 0)
+        gpt_layout.setSpacing(8)
+
+        dir_row = QHBoxLayout()
+        dir_label = QLabel("目录")
+        dir_label.setObjectName("row")
+        dir_label.setFixedWidth(40)
+        dir_row.addWidget(dir_label)
+        self.dir_edit = QLineEdit()
+        self.dir_edit.setPlaceholderText(r"含 api_v2.py 的目录，例如 C:\GPT-SoVITS")
+        self.dir_edit.editingFinished.connect(self._save_dir)
+        dir_row.addWidget(self.dir_edit, 1)
+        detect = QPushButton("检测")
+        detect.setObjectName("action")
+        detect.clicked.connect(self._detect_dir)
+        dir_row.addWidget(detect)
+        gpt_layout.addLayout(dir_row)
+
+        url_row = QHBoxLayout()
+        url_label = QLabel("地址")
+        url_label.setObjectName("row")
+        url_label.setFixedWidth(40)
+        url_row.addWidget(url_label)
+        self.url_edit = QLineEdit()
+        self.url_edit.editingFinished.connect(self._save_url)
+        url_row.addWidget(self.url_edit, 1)
+        gpt_layout.addLayout(url_row)
+
+        ref_row = QHBoxLayout()
+        ref_label = QLabel("参考")
+        ref_label.setObjectName("row")
+        ref_label.setFixedWidth(40)
+        ref_row.addWidget(ref_label)
+        self.ref_edit = QLineEdit()
+        self.ref_edit.setPlaceholderText("参考音频 wav 路径（可选）")
+        self.ref_edit.editingFinished.connect(self._save_ref)
+        ref_row.addWidget(self.ref_edit, 1)
+        pick_ref = QPushButton("…")
+        pick_ref.setObjectName("action")
+        pick_ref.setFixedWidth(34)
+        pick_ref.clicked.connect(self._pick_ref)
+        ref_row.addWidget(pick_ref)
+        gpt_layout.addLayout(ref_row)
+
+        prompt_row = QHBoxLayout()
+        prompt_label = QLabel("文本")
+        prompt_label.setObjectName("row")
+        prompt_label.setFixedWidth(40)
+        prompt_row.addWidget(prompt_label)
+        self.prompt_edit = QLineEdit()
+        self.prompt_edit.setPlaceholderText("参考音频里说的那句话（可选）")
+        self.prompt_edit.editingFinished.connect(self._save_prompt)
+        prompt_row.addWidget(self.prompt_edit, 1)
+        gpt_layout.addLayout(prompt_row)
+
+        start_row = QHBoxLayout()
+        self.gpt_hint = QLabel("")
+        self.gpt_hint.setObjectName("hint")
+        start_row.addWidget(self.gpt_hint, 1)
+        start = QPushButton("启动服务")
+        start.setObjectName("action")
+        start.clicked.connect(self._start_gpt_service)
+        start_row.addWidget(start)
+        gpt_layout.addLayout(start_row)
+        body.addWidget(self.gpt_box)
 
         self.rate_slider, rate_row = self._slider_row("语速", -50, 50, "voice_chime_rate", body)
         self.volume_slider, volume_row = self._slider_row("音量", 0, 100, "voice_chime_volume", body)
@@ -221,6 +309,14 @@ class PetControlPanel(QWidget):
                 slider.setValue(int(self.cfg.get(key, slider.value())))
             except (TypeError, ValueError):
                 pass
+        backend = str(self.cfg.get("voice_chime_tts_backend", "edge"))
+        index = self.backend_combo.findData(backend)
+        self.backend_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.dir_edit.setText(str(self.cfg.get("voice_chime_gptsovits_dir", "") or ""))
+        self.url_edit.setText(str(self.cfg.get("voice_chime_gptsovits_url", "http://127.0.0.1:9880")))
+        self.ref_edit.setText(str(self.cfg.get("voice_chime_gptsovits_ref_audio", "") or ""))
+        self.prompt_edit.setText(str(self.cfg.get("voice_chime_gptsovits_prompt_text", "") or ""))
+        self._sync_backend_visibility()
         for key, box in self._rows.items():
             box.blockSignals(True)
             box.setChecked(self._flag(key))
@@ -280,6 +376,85 @@ class PetControlPanel(QWidget):
     def _save_int(self, key: str, value: int) -> None:
         self.cfg.set(key, int(value))
         self.cfg.save()
+
+    def _save_value(self, key: str, value: str) -> None:
+        self.cfg.set(key, value)
+        self.cfg.save()
+
+    def _sync_backend_visibility(self) -> None:
+        gpt = self.backend_combo.currentData() == "gptsovits"
+        self.edge_box.setVisible(not gpt)
+        self.gpt_box.setVisible(gpt)
+        self.adjustSize()
+
+    def _backend_changed(self, _index: int) -> None:
+        self._save_value("voice_chime_tts_backend", str(self.backend_combo.currentData() or "edge"))
+        self._sync_backend_visibility()
+
+    def _save_dir(self) -> None:
+        self._save_value("voice_chime_gptsovits_dir", self.dir_edit.text().strip())
+
+    def _save_url(self) -> None:
+        self._save_value("voice_chime_gptsovits_url", self.url_edit.text().strip() or "http://127.0.0.1:9880")
+
+    def _save_ref(self) -> None:
+        self._save_value("voice_chime_gptsovits_ref_audio", self.ref_edit.text().strip())
+
+    def _save_prompt(self) -> None:
+        self._save_value("voice_chime_gptsovits_prompt_text", self.prompt_edit.text().strip())
+
+    def _pick_ref(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "选择参考音频", "", "音频 (*.wav *.mp3 *.flac)")
+        if path:
+            self.ref_edit.setText(path)
+            self._save_ref()
+
+    def _gpt_candidates(self) -> list[str]:
+        candidates = [self.dir_edit.text().strip()]
+        candidates += [str(self.cfg.get("voice_chime_gptsovits_dir", "") or "")]
+        candidates += [r"C:\GPT-SoVITS", r"D:\GPT-SoVITS"]
+        seen, ordered = set(), []
+        for item in candidates:
+            if item and item not in seen:
+                seen.add(item)
+                ordered.append(item)
+        return ordered
+
+    def _valid_gpt_dir(self, path: str) -> bool:
+        root = Path(path)
+        return (root / "api_v2.py").is_file() or (root / "api.py").is_file()
+
+    def _detect_dir(self) -> None:
+        for path in self._gpt_candidates():
+            if self._valid_gpt_dir(path):
+                self.dir_edit.setText(path)
+                self._save_dir()
+                self.gpt_hint.setText("已找到 GPT-SoVITS")
+                return
+        self.gpt_hint.setText("没找到，请填目录")
+
+    def _start_gpt_service(self) -> None:
+        import subprocess
+        import sys
+
+        for path in self._gpt_candidates():
+            if not self._valid_gpt_dir(path):
+                continue
+            root = Path(path)
+            python = root / "env" / "python.exe"
+            program = str(python) if python.is_file() else sys.executable
+            script = "api_v2.py" if (root / "api_v2.py").is_file() else "api.py"
+            try:
+                subprocess.Popen([program, script], cwd=str(root),
+                                 creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+                self.dir_edit.setText(str(root))
+                self._save_dir()
+                self.gpt_hint.setText("已启动，等端口就绪")
+                return
+            except Exception as error:
+                self.gpt_hint.setText(f"启动失败：{error}")
+                return
+        self.gpt_hint.setText("目录里没有 api_v2.py")
 
     def _voice_changed(self, _index: int) -> None:
         value = self.voice_combo.currentData()

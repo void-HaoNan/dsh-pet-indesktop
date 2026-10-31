@@ -14,6 +14,9 @@ class _Cfg:
             "voice_chime_voice": "zh-CN-XiaoxiaoNeural",
             "voice_chime_rate": 5,
             "voice_chime_volume": 70,
+            "voice_chime_tts_backend": "edge",
+            "voice_chime_gptsovits_dir": r"C:\GPT-SoVITS",
+            "voice_chime_gptsovits_url": "http://127.0.0.1:9880",
         }
         self.saved = 0
 
@@ -65,3 +68,22 @@ def test_voice_settings_persist(panel):
     widget._save_int("voice_chime_volume", 55)
     assert cfg.data["voice_chime_rate"] == 12
     assert cfg.data["voice_chime_volume"] == 55
+
+
+def test_backend_switch_persists(panel):
+    widget, cfg = panel
+    assert widget.edge_box.isVisibleTo(widget) is True
+    index = widget.backend_combo.findData("gptsovits")
+    widget.backend_combo.setCurrentIndex(index)
+    assert cfg.data["voice_chime_tts_backend"] == "gptsovits"
+    assert widget.gpt_box.isVisibleTo(widget) is True
+    assert widget.edge_box.isVisibleTo(widget) is False
+
+
+def test_detect_dir_uses_valid_candidate(panel, monkeypatch):
+    widget, cfg = panel
+    monkeypatch.setattr(widget, "_valid_gpt_dir", lambda path: path.rstrip("\\") == "C:\\GPT-SoVITS")
+    monkeypatch.setattr(widget, "_gpt_candidates", lambda: [r"C:\GPT-SoVITS"])
+    widget._detect_dir()
+    assert widget.dir_edit.text() == r"C:\GPT-SoVITS"
+    assert cfg.data["voice_chime_gptsovits_dir"] == r"C:\GPT-SoVITS"

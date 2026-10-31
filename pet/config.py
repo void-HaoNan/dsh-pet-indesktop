@@ -1317,6 +1317,12 @@ class Config:
             # edge 不需要任何凭据，且失败照走既有自动回退。只改仓库默认值，不动任何人
             # 本机 config.json 里的显式取值。
             "voice_chime_tts_backend": "edge",  # edge / mimo / sapi / doubao
+    "voice_chime_gptsovits_url": "http://127.0.0.1:9880",
+    "voice_chime_gptsovits_dir": r"C:\GPT-SoVITS",
+    "voice_chime_gptsovits_ref_audio": "",
+    "voice_chime_gptsovits_prompt_text": "",
+    "voice_chime_gptsovits_prompt_lang": "zh",
+    "voice_chime_gptsovits_text_lang": "zh",
             "voice_chime_tts_fallback": True,  # 主后端失败自动回退 edge
             "voice_chime_mimo_model": "mimo-v2.5-tts",  # 或 mimo-v2.5-tts-voicedesign
             "voice_chime_mimo_voice": "冰糖",  # 内置音色 id（中文名即 id）

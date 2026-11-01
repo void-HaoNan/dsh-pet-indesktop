@@ -2759,6 +2759,15 @@ class AppShell:
         from PySide6.QtCore import QTimer as _QTimer
 
         log = logging.getLogger("dsh-pet-standalone")
+        try:
+            import sys as _sys
+            _lib_root = r"D:\PYMSS-RVC\douyin-live"
+            if _lib_root not in _sys.path:
+                _sys.path.insert(0, _lib_root)
+            from lib import state as action_state
+        except Exception:  # 没有这个目录就回退，桌宠本体不依赖外部库
+            action_state = None
+
         path = _os.environ.get("DSH_PET_ACTION_FILE") or _os.path.join(
             _os.environ.get("APPDATA", ""), "dsh-pet-bubble", "action.json")
         log.info("action watcher installed: %s", path)
@@ -2787,39 +2796,12 @@ class AppShell:
                 want = "idle"
             if want == state["current"]:
                 return
-            if want == "pause":
-                # 停顿只暂停说话动画（闭嘴），不回待机；一句话没说完不会被打断
-                hold = getattr(win, "external_hold_anim", None)
-                current = getattr(win, "anim", None)
-                if not hold and current and current != getattr(win, "idle", None):
-                    hold = current  # hold 被 idle 清掉时，保持当前说话动作不再切待机
-                if hold:
-                    if getattr(win, "anim", None) != hold:
-                        try:
-                            win.switch_clip(hold)
-                        except Exception:
-                            pass
-                    try:
-                        win.movie.pause()
-                    except Exception:
-                        pass
-                    state["current"] = "pause"
-                    return
-            if want == "talking" and state["current"] == "pause":
-                hold = getattr(win, "external_hold_anim", None)
-                if hold and getattr(win, "anim", None) == hold:
-                    try:
-                        win.movie.resume()
-                    except Exception:
-                        pass
-                    state["current"] = "talking"
-                    return
             state["current"] = want
             name = _resolve(win, mapping[want]) if want in mapping else win.idle
             log.info("external action -> %s (%s)", want, name)
             try:
-                # 说话/思考/停顿期间锁住随机动作，播完由 _on_anim_ended 续播
-                win.external_hold_anim = name if want != "idle" else None
+                # 只给状态，循环和切换由窗口自己的动作系统做
+                win.external_state = want
                 win.switch_clip(name)
             except Exception as error:
                 log.warning("external action switch failed: %s", error)
@@ -2848,6 +2830,8 @@ class AppShell:
                     if "state" in obj:
                         ttl = min(60.0, max(0.5, float(obj.get("ttl") or 8000) / 1000.0))
                         which = str(obj.get("state") or "").lower()
+                        if action_state is not None:
+                            which = action_state.normalize(which)
                         if which in ("talking", "singing", "think", "pause"):
                             # 节奏状态：谁最后写谁算（ttl 内有效），pause 映射到待机
                             state["mode"] = which

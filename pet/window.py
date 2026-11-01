@@ -419,8 +419,15 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         self.clicks = self.cats['clicks']
         self.drag = self.cats['drag']
         self.acts = self.cats['acts']
-        # 外部动作（说话/思考/停顿）占用时，随机动作链不得插播；播完自动续同一个
-        self.external_hold_anim = None
+        # 自己的动作系统：外部只给状态（idle/talking/think/singing），
+        # 循环由这里控制，随机链完全停用。
+        self.external_state = None
+        self.external_clips = {
+            "idle": "待机呼吸休闲",
+            "talking": "说话-开口",
+            "think": "思考-疑惑",
+            "singing": "悠闲哼歌",
+        }
 
         # 批10-A1 预测式预热（控制器在 predictive_prewarm.py）；提前量默认 350ms，可配 200-600。
         self.predict_prewarm_lead_ms = max(200, min(600, int(config.get('predict_prewarm_lead_ms', 350))))
@@ -2535,9 +2542,12 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
 
     # ================================================================ 动画链
     def _on_anim_ended(self, name: str) -> None:
-        hold = getattr(self, "external_hold_anim", None)
-        if hold and name == hold:
-            self._restart_current_clip(name)
+        clip = self._external_clip()
+        if clip:
+            if name != clip:
+                self._switch(clip)
+            else:
+                self._restart_current_clip(clip)
             return
         if name == SING_ANIM:
             # 音乐自动唱歌开启且当前仍处于“唱歌中”时，直接无缝续播；
@@ -2661,14 +2671,24 @@ class PetWindow(QWidget, WindowFeatureGateMixin):
         #  后恢复 main 语义，见 PR57 遗留 N6。）
         self._animation_gap_active = False
 
+    def _external_clip(self):
+        """外部状态对应的 clip；不接管时返回 None。"""
+        state = getattr(self, "external_state", None)
+        if not state:
+            return None
+        clip = (getattr(self, "external_clips", {}) or {}).get(state)
+        if clip and clip in self.acts or (clip and clip in self.idles):
+            return clip
+        return getattr(self, "idle", None)
+
     def _pick_next(self) -> None:
-        """外部动作占用时只续播它，不进入随机链。"""
-        hold = getattr(self, "external_hold_anim", None)
-        if hold:
-            if self.anim != hold:
-                self._switch(hold)
+        """自己的动作系统：只按外部状态循环，随机链不用。"""
+        clip = self._external_clip()
+        if clip:
+            if self.anim != clip:
+                self._switch(clip)
             else:
-                self._restart_current_clip(hold)
+                self._restart_current_clip(clip)
             return
         """动画链：30% 待机 / 10% 转向 / 40% 动作 / 20% 移动（空间不够回退动作）。
 
